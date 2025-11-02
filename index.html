@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Score Keeper Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Hide number input arrows */
+        input[type='number']::-webkit-outer-spin-button,
+        input[type='number']::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type='number'] {
+            -moz-appearance: textfield;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.5s ease-out forwards;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-900 text-white">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+        import React, { useState, useCallback, useEffect, useMemo } from 'react';
+        import ReactDOM from 'react-dom/client';
+
+        // --- TYPES ---
+        // Originally from types.ts
+        // Originally from App.tsx
+        
+        // --- ICONS ---
+
+        const PencilIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+            </svg>
+        );
+
+        const TrashIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        );
+
+        const StarIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+        );
+
+        // --- MODAL COMPONENTS ---
+
+        const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, roundNumber }) => {
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm space-y-4 text-center">
+                        <h3 className="text-2xl font-bold text-red-500">Confirmar Eliminació</h3>
+                        <p className="text-slate-300">Estàs segur que vols eliminar la Ronda {roundNumber}? Aquesta acció no es pot desfer.</p>
+                        <div className="flex gap-4 mt-4">
+                            <button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Eliminar</button>
+                            <button onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const EditRoundModal = ({ isOpen, onClose, onSave, onDelete, roundNumber, players, teams, playByTeams, roundScores }) => {
+            const [editedScores, setEditedScores] = useState([]);
+            const [isNegative, setIsNegative] = useState([]);
+
+            useEffect(() => {
+                if (isOpen) {
+                    setEditedScores(roundScores.map(score => Math.abs(score).toFixed(2).replace(/\.00$/, '')));
+                    setIsNegative(roundScores.map(score => score < 0));
+                }
+            }, [isOpen, roundScores]);
+            
+            if (!isOpen) return null;
+
+            const handleScoreChange = (index, value) => {
+                const updatedScores = [...editedScores];
+                updatedScores[index] = value;
+                setEditedScores(updatedScores);
+            };
+
+            const handleNegativeToggle = (index) => {
+                const updatedIsNegative = [...isNegative];
+                updatedIsNegative[index] = !updatedIsNegative[index];
+                setIsNegative(updatedIsNegative);
+            };
+
+            const handleSave = () => {
+                const newScores = players.map((_, index) => {
+                    const numValue = parseFloat(editedScores[index]) || 0;
+                    return isNegative[index] ? -Math.abs(numValue) : numValue;
+                });
+                onSave(newScores);
+            };
+
+            const renderPlayerInputs = (playerList) => {
+                return playerList.map(player => {
+                    const index = players.findIndex(p => p.name === player.name);
+                    return (
+                        <div key={index}>
+                            <label htmlFor={`edit-score-${index}`} className="block mb-1 text-sm font-medium text-slate-300">{player.name}</label>
+                            <div className="flex items-center gap-2">
+                                <span className="sm:hidden">
+                                    <input type="checkbox" id={`edit-negative-check-${index}`} checked={isNegative[index]} onChange={() => handleNegativeToggle(index)} className="h-5 w-5 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 flex-shrink-0" title="Marcar si és negatiu" />
+                                </span>
+                                <input type="number" id={`edit-score-${index}`} value={editedScores[index] || ''} onChange={(e) => handleScoreChange(index, e.target.value)} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" step="any" />
+                            </div>
+                        </div>
+                    )
+                })
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-40">
+                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-2xl font-bold text-cyan-400">Editar Punts de la Ronda {roundNumber}</h3>
+                            <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 rounded-full transition duration-300" title="Eliminar Ronda">
+                                <TrashIcon />
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-400 sm:hidden">Marca la casella per indicar una puntuació en negatiu</p>
+                        <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                            {playByTeams ? (
+                                <div className="space-y-4">
+                                    {teams.map(team => (
+                                        <div key={team.name}>
+                                            <h4 className="text-md font-semibold text-cyan-400 mb-2">{team.name}</h4>
+                                            <div className="space-y-3">
+                                                {renderPlayerInputs(players.filter(p => team.playerNames.includes(p.name)))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                               renderPlayerInputs(players)
+                            )}
+                        </div>
+                        <div className="flex gap-4">
+                            <button onClick={handleSave} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Desar Canvis</button>
+                            <button onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN COMPONENTS ---
+        
+        const PlayerScoreTable = ({ players, numRounds, onOpenEditModal }) => {
+            return (
+                <table className="w-full text-sm text-left text-slate-300">
+                    <thead className="text-xs text-cyan-300 uppercase bg-slate-700">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 min-w-[120px]">Ronda</th>
+                            {players.map(player => (
+                                <th key={player.name} scope="col" className="px-4 py-3 text-center min-w-[100px] truncate">{player.name}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {numRounds === 0 ? (
+                            <tr>
+                                <td colSpan={players.length + 1} className="text-center p-8 text-slate-500">
+                                    Encara no s'han afegit puntuacions.
+                                </td>
+                            </tr>
+                        ) : (
+                            Array.from({ length: numRounds }).map((_, i) => {
+                                const cumulativeScores = players.map(p => p.scores.slice(0, i + 1).reduce((a, b) => a + b, 0));
+                                const roundScores = players.map(p => p.scores[i]);
+                                const maxScore = Math.max(...roundScores);
+
+                                return (
+                                    <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50">
+                                        <td className="px-4 py-3 font-medium whitespace-nowrap flex items-center gap-2">
+                                            Ronda {i + 1}
+                                            <button onClick={() => onOpenEditModal(i)} className="text-slate-400 hover:text-cyan-400" title={`Editar Ronda ${i + 1}`}>
+                                                <PencilIcon />
+                                            </button>
+                                        </td>
+                                        {players.map((player, playerIndex) => {
+                                            const roundScore = player.scores[i].toFixed(2).replace(/\.00$/, '');
+                                            const scoreColor = player.scores[i] > 0 ? 'text-green-400' : (player.scores[i] < 0 ? 'text-red-400' : 'text-slate-400');
+                                            const isHighest = player.scores[i] === maxScore && roundScores.some(s => s !== 0);
+                                            
+                                            return (
+                                                <td key={playerIndex} className="px-4 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className={`font-semibold ${scoreColor}`}>{roundScore}</span>
+                                                        {isHighest && <StarIcon className="w-4 h-4 text-yellow-400" />}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 block">({cumulativeScores[playerIndex].toFixed(2).replace(/\.00$/, '')})</span>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                    <tfoot className="font-bold text-white bg-slate-700">
+                        <tr>
+                            <td className="px-4 py-3 text-lg">Total</td>
+                            {players.map((player, index) => (
+                                <td key={index} className="px-4 py-3 text-center text-lg text-cyan-400">
+                                    {player.total.toFixed(2).replace(/\.00$/, '')}
+                                </td>
+                            ))}
+                        </tr>
+                    </tfoot>
+                </table>
+            );
+        };
+
+        const TeamScoreTable = ({ teams, players, numRounds, onOpenEditModal }) => {
+            return (
+                <table className="w-full text-sm text-left text-slate-300">
+                    <thead className="text-xs text-cyan-300 uppercase bg-slate-700">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 min-w-[120px]">Ronda</th>
+                            {teams.map(team => (
+                                <th key={team.name} scope="col" className="px-4 py-3 text-center min-w-[100px] truncate">{team.name}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                         {numRounds === 0 ? (
+                            <tr>
+                                <td colSpan={teams.length + 1} className="text-center p-8 text-slate-500">
+                                    Encara no s'han afegit puntuacions.
+                                </td>
+                            </tr>
+                        ) : (
+                            Array.from({ length: numRounds }).map((_, i) => {
+                                const cumulativeScores = teams.map(t => t.scores.slice(0, i + 1).reduce((a, b) => a + b, 0));
+                                const roundScores = teams.map(t => t.scores[i]);
+                                const maxScore = Math.max(...roundScores);
+
+                                return (
+                                     <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50">
+                                        <td className="px-4 py-3 font-medium whitespace-nowrap flex items-center gap-2">
+                                            Ronda {i + 1}
+                                            <button onClick={() => onOpenEditModal(i)} className="text-slate-400 hover:text-cyan-400" title={`Editar Ronda ${i + 1}`}>
+                                                <PencilIcon />
+                                            </button>
+                                        </td>
+                                        {teams.map((team, teamIndex) => {
+                                            const roundScore = team.scores[i].toFixed(2).replace(/\.00$/, '');
+                                            const scoreColor = team.scores[i] > 0 ? 'text-green-400' : (team.scores[i] < 0 ? 'text-red-400' : 'text-slate-400');
+                                            const isHighest = team.scores[i] === maxScore && roundScores.some(s => s !== 0);
+
+                                            const playerBreakdown = team.playerNames.map(name => {
+                                                const player = players.find(p => p.name === name);
+                                                const score = player?.scores[i].toFixed(2).replace(/\.00$/, '') || 'N/A';
+                                                return `${name.split(' ')[0]}: ${score}`;
+                                            }).join(' / ');
+
+                                            return (
+                                                <td key={teamIndex} className="px-4 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className={`font-semibold ${scoreColor}`}>{roundScore}</span>
+                                                        {isHighest && <StarIcon className="w-4 h-4 text-yellow-400" />}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 block truncate" title={playerBreakdown}>({playerBreakdown})</span>
+                                                    <span className="text-xs text-slate-400 block font-bold">Total: {cumulativeScores[teamIndex].toFixed(2).replace(/\.00$/, '')}</span>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                )
+                            })
+                        )}
+                    </tbody>
+                    <tfoot className="font-bold text-white bg-slate-700">
+                         <tr>
+                            <td className="px-4 py-3 text-lg">Total</td>
+                            {teams.map((team, index) => (
+                                <td key={index} className="px-4 py-3 text-center text-lg text-cyan-400">
+                                    {team.total.toFixed(2).replace(/\.00$/, '')}
+                                </td>
+                            ))}
+                        </tr>
+                    </tfoot>
+                </table>
+            )
+        }
+
+        const ScoreTable = ({ players, teams, playByTeams, onOpenEditModal }) => {
+            const numRounds = players[0]?.scores.length || 0;
+
+            if (playByTeams) {
+                return <TeamScoreTable teams={teams} players={players} numRounds={numRounds} onOpenEditModal={onOpenEditModal} />;
+            }
+            return <PlayerScoreTable players={players} numRounds={numRounds} onOpenEditModal={onOpenEditModal} />;
+        };
+
+        const GameScreen = ({ gameName, players, teams, playByTeams, startingPlayer, onAddRound, onUpdateRound, onDeleteRound, onNewGame }) => {
+            const [newScores, setNewScores] = useState([]);
+            const [isNegative, setIsNegative] = useState([]);
+            const [editingRoundIndex, setEditingRoundIndex] = useState(null);
+            const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+
+            const currentRound = (players[0]?.scores.length || 0) + 1;
+
+            useEffect(() => {
+                setNewScores(Array(players.length).fill(''));
+                setIsNegative(Array(players.length).fill(false));
+            }, [players.length, currentRound]);
+
+            const handleScoreChange = (index, value) => {
+                const updatedScores = [...newScores];
+                updatedScores[index] = value;
+                setNewScores(updatedScores);
+            };
+
+            const handleNegativeToggle = (index) => {
+                const updatedIsNegative = [...isNegative];
+                updatedIsNegative[index] = !updatedIsNegative[index];
+                setIsNegative(updatedIsNegative);
+            };
+
+            const handleAddRound = () => {
+                const allEmpty = newScores.every(score => score.trim() === '');
+                if (allEmpty) return;
+
+                const roundScores = players.map((_, index) => {
+                    const numValue = parseFloat(newScores[index]) || 0;
+                    return isNegative[index] ? -Math.abs(numValue) : numValue;
+                });
+                
+                onAddRound(roundScores);
+            };
+            
+            const handleOpenEditModal = (roundIndex) => {
+                setEditingRoundIndex(roundIndex);
+            };
+
+            const handleCloseEditModal = () => {
+                setEditingRoundIndex(null);
+            };
+
+            const handleSaveEdits = (newScores) => {
+                if (editingRoundIndex !== null) {
+                    onUpdateRound(editingRoundIndex, newScores);
+                }
+                handleCloseEditModal();
+            };
+            
+            const handleOpenDeleteConfirm = () => {
+                setDeleteModalOpen(true);
+            };
+
+            const handleConfirmDelete = () => {
+                if (editingRoundIndex !== null) {
+                    onDeleteRound(editingRoundIndex);
+                }
+                setDeleteModalOpen(false);
+                handleCloseEditModal();
+            };
+
+            const handleKeyDown = (event) => {
+                if (event.key === 'Enter') {
+                    handleAddRound();
+                }
+            };
+            
+            const renderPlayerInputs = (playerList) => {
+                return playerList.map(player => {
+                    const index = players.findIndex(p => p.name === player.name);
+                    return (
+                         <div key={index}>
+                            <label htmlFor={`round-score-${index}`} className="block mb-1 text-sm font-medium text-slate-400 truncate">{player.name}</label>
+                            <div className="flex items-center gap-2">
+                                <span className="sm:hidden">
+                                    <input type="checkbox" id={`round-negative-check-${index}`} checked={isNegative[index]} onChange={() => handleNegativeToggle(index)} className="h-5 w-5 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 flex-shrink-0" title="Marcar si és negatiu" />
+                                </span>
+                                <input type="number" id={`round-score-${index}`} value={newScores[index] || ''} onChange={(e) => handleScoreChange(index, e.target.value)} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5 text-center" placeholder="0" step="any" />
+                            </div>
+                        </div>
+                    )
+                })
+            }
+
+            return (
+                <>
+                    <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl animate-fade-in">
+                        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <div>
+                                <h2 className="text-3xl font-bold text-cyan-400">{gameName}</h2>
+                                {startingPlayer && <p className="text-slate-400 mt-1">Comença la partida: {startingPlayer}!</p>}
+                            </div>
+                            <button onClick={onNewGame} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                                Nova Partida
+                            </button>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-lg">
+                            <ScoreTable players={players} teams={teams} playByTeams={playByTeams} onOpenEditModal={handleOpenEditModal} />
+                        </div>
+
+                        <div className="mt-6 p-4 bg-slate-900/50 rounded-lg" onKeyDown={handleKeyDown}>
+                            <h3 className="text-lg font-semibold mb-1">Punts de la Ronda <span id="current-round-number">{currentRound}</span></h3>
+                            <p className="text-xs text-slate-400 mb-4 sm:hidden">Marca la casella per indicar una puntuació en negatiu</p>
+                            {playByTeams ? (
+                                <div className="space-y-4">
+                                    {teams.map(team => (
+                                        <div key={team.name}>
+                                            <h4 className="text-md font-semibold text-cyan-400 mb-2">{team.name}</h4>
+                                            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                                {renderPlayerInputs(players.filter(p => team.playerNames.includes(p.name)))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {renderPlayerInputs(players)}
+                                </div>
+                            )}
+                            <button onClick={handleAddRound} className="mt-4 w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
+                                Afegir Ronda
+                            </button>
+                        </div>
+                    </div>
+
+                    {editingRoundIndex !== null && (
+                        <EditRoundModal
+                            isOpen={editingRoundIndex !== null}
+                            onClose={handleCloseEditModal}
+                            onSave={handleSaveEdits}
+                            onDelete={handleOpenDeleteConfirm}
+                            roundNumber={editingRoundIndex + 1}
+                            players={players}
+                            teams={teams}
+                            playByTeams={playByTeams}
+                            roundScores={players.map(p => p.scores[editingRoundIndex])}
+                        />
+                    )}
+                    
+                    {editingRoundIndex !== null && (
+                        <ConfirmDeleteModal
+                            isOpen={isDeleteModalOpen}
+                            onClose={() => setDeleteModalOpen(false)}
+                            onConfirm={handleConfirmDelete}
+                            roundNumber={editingRoundIndex + 1}
+                        />
+                    )}
+                </>
+            );
+        };
+        
+        const SetupScreen = ({ onStartGame, initialGameName = '', initialPlayerNames = [] }) => {
+            const hasInitialPlayers = initialPlayerNames && initialPlayerNames.length >= 2;
+
+            const [gameName, setGameName] = useState(initialGameName);
+            const [playerCount, setPlayerCount] = useState(hasInitialPlayers ? initialPlayerNames.length : 2);
+            const [playerNames, setPlayerNames] = useState(hasInitialPlayers ? initialPlayerNames : Array(2).fill(''));
+            
+            const [playByTeams, setPlayByTeams] = useState(false);
+            const [teamCount, setTeamCount] = useState(2);
+            const [teams, setTeams] = useState([]);
+            const [unassignedPlayers, setUnassignedPlayers] = useState([]);
+            
+            useEffect(() => {
+                const newPlayerNames = Array.from({ length: playerCount }, (_, i) => playerNames[i] || '');
+                setPlayerNames(newPlayerNames);
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [playerCount]);
+            
+            useEffect(() => {
+                setUnassignedPlayers(playerNames.map((name, i) => name || `Jugador ${i + 1}`));
+                const newTeams = Array.from({ length: teamCount }, (_, i) => ({
+                    name: `Equip ${i + 1}`,
+                    playerNames: [],
+                }));
+                setTeams(newTeams);
+            }, [playByTeams, teamCount, playerNames]);
+
+            const handlePlayerCountChange = (e) => {
+                const count = Math.max(2, Math.min(8, parseInt(e.target.value, 10) || 2));
+                setPlayerCount(count);
+            };
+
+            const handlePlayerNameChange = (index, name) => {
+                const newPlayerNames = [...playerNames];
+                newPlayerNames[index] = name;
+                setPlayerNames(newPlayerNames);
+            };
+
+            const handleTeamCountChange = (e) => {
+                const count = Math.max(2, Math.min(4, parseInt(e.target.value, 10) || 2));
+                setTeamCount(count);
+            };
+            
+            const handleTeamNameChange = (index, name) => {
+                const newTeams = [...teams];
+                newTeams[index].name = name;
+                setTeams(newTeams);
+            };
+
+            const handleDragStart = (e, playerName) => {
+                e.dataTransfer.setData("playerName", playerName);
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+            };
+
+            const handleDrop = (e, target) => {
+                e.preventDefault();
+                const playerName = e.dataTransfer.getData("playerName");
+                if (!playerName) return;
+
+                // Remove from all teams and unassigned list first
+                const newUnassigned = unassignedPlayers.filter(p => p !== playerName);
+                const newTeams = teams.map(team => ({
+                    ...team,
+                    playerNames: team.playerNames.filter(p => p !== playerName),
+                }));
+
+                // Add to the new target
+                if (target === 'unassigned') {
+                    setUnassignedPlayers([...newUnassigned, playerName]);
+                    setTeams(newTeams);
+                } else {
+                    newTeams[target].playerNames.push(playerName);
+                    setTeams(newTeams);
+                    setUnassignedPlayers(newUnassigned);
+                }
+            };
+
+            const isStartDisabled = useMemo(() => {
+                return playByTeams && unassignedPlayers.length > 0;
+            }, [playByTeams, unassignedPlayers]);
+
+            const handleStart = () => {
+                const finalPlayerNames = playerNames.map((name, i) => name || `Jugador ${i+1}`);
+                onStartGame(gameName, finalPlayerNames, { playByTeams, teams });
+            };
+
+            return (
+                <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl space-y-6 animate-fade-in">
+                    <h1 className="text-3xl font-bold text-center text-cyan-400">Comptador de Punts</h1>
+                    <p className="text-center text-slate-400">Configura la teva partida per començar.</p>
+
+                    <div>
+                        <label htmlFor="game-name" className="block mb-2 text-sm font-medium text-slate-300">Nom del Joc</label>
+                        <input type="text" id="game-name" value={gameName} onChange={(e) => setGameName(e.target.value)} placeholder="Ex: Continental, Pocha..." className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" />
+                    </div>
+
+                    <div>
+                        <label htmlFor="player-count" className="block mb-2 text-sm font-medium text-slate-300">Quants jugadors sereu?</label>
+                        <input type="number" id="player-count" min="2" max="8" value={playerCount} onChange={handlePlayerCountChange} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {playerNames.map((name, index) => (
+                            <div key={index}>
+                                <label htmlFor={`player-name-${index + 1}`} className="block mb-2 text-sm font-medium text-slate-300">Nom del Jugador {index + 1}</label>
+                                <input type="text" id={`player-name-${index + 1}`} value={name} onChange={(e) => handlePlayerNameChange(index, e.target.value)} placeholder={`Jugador ${index + 1}`} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" />
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <div className="border-t border-slate-700 pt-6 space-y-4">
+                        <div className="flex items-center">
+                            <input id="play-by-teams" type="checkbox" checked={playByTeams} onChange={(e) => setPlayByTeams(e.target.checked)} className="w-4 h-4 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500" />
+                            <label htmlFor="play-by-teams" className="ml-2 text-sm font-medium text-slate-300">Jugar per equips</label>
+                        </div>
+
+                        {playByTeams && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div>
+                                    <label htmlFor="team-count" className="block mb-2 text-sm font-medium text-slate-300">Nombre d'equips</label>
+                                    <input type="number" id="team-count" min="2" max="4" value={teamCount} onChange={handleTeamCountChange} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" />
+                                </div>
+                                
+                                <p className="text-sm text-slate-400">Arrossega els jugadors als seus equips:</p>
+                                
+                                <div className="p-4 bg-slate-900/50 rounded-lg" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'unassigned')}>
+                                    <h3 className="font-semibold text-slate-300 mb-2">Jugadors sense equip</h3>
+                                    <div className="flex flex-wrap gap-2 min-h-[40px]">
+                                        {unassignedPlayers.map(p => (
+                                            <div key={p} draggable onDragStart={(e) => handleDragStart(e, p)} className="bg-slate-600 px-3 py-1 rounded-full text-sm cursor-grab active:cursor-grabbing">{p}</div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {teams.map((team, index) => (
+                                        <div key={index} className="p-4 bg-slate-700 rounded-lg" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, index)}>
+                                            <input type="text" value={team.name} onChange={(e) => handleTeamNameChange(index, e.target.value)} className="bg-transparent text-cyan-400 font-bold w-full mb-2 focus:outline-none focus:ring-0" />
+                                            <div className="flex flex-wrap gap-2 min-h-[40px]">
+                                                {team.playerNames.map(p => (
+                                                     <div key={p} draggable onDragStart={(e) => handleDragStart(e, p)} className="bg-slate-600 px-3 py-1 rounded-full text-sm cursor-grab active:cursor-grabbing">{p}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={handleStart} disabled={isStartDisabled} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-lg disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        {isStartDisabled ? "Assigna tots els jugadors" : "Començar Partida"}
+                    </button>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [gameState, setGameState] = useState('setup');
+            const [gameName, setGameName] = useState('');
+            const [players, setPlayers] = useState([]);
+            const [teams, setTeams] = useState([]);
+            const [playByTeams, setPlayByTeams] = useState(false);
+            const [startingPlayer, setStartingPlayer] = useState(null);
+
+            const recalculatePlayerTotals = (updatedPlayers) => {
+                return updatedPlayers.map(player => ({
+                    ...player,
+                    total: player.scores.reduce((sum, current) => sum + current, 0),
+                }));
+            };
+
+            const calculateTeamScores = useCallback((currentPlayers, currentTeams) => {
+                if (!currentTeams.length) return [];
+
+                return currentTeams.map(team => {
+                    const numRounds = currentPlayers[0]?.scores.length || 0;
+                    const teamScores = [];
+
+                    for (let i = 0; i < numRounds; i++) {
+                        let roundTotal = 0;
+                        team.playerNames.forEach(playerName => {
+                            const player = currentPlayers.find(p => p.name === playerName);
+                            if (player && player.scores[i] !== undefined) {
+                                roundTotal += player.scores[i];
+                            }
+                        });
+                        teamScores.push(roundTotal);
+                    }
+                    
+                    const total = teamScores.reduce((sum, score) => sum + score, 0);
+                    return { ...team, scores: teamScores, total };
+                });
+            }, []);
+
+            const handleStartGame = useCallback((
+                name,
+                playerNames,
+                config
+            ) => {
+                setGameName(name || 'Partida');
+                setPlayByTeams(config.playByTeams);
+
+                const newPlayers = playerNames.map((playerName, index) => ({
+                    name: playerName || `Jugador ${index + 1}`,
+                    scores: [],
+                    total: 0,
+                }));
+                setPlayers(newPlayers);
+                
+                if (config.playByTeams) {
+                    const newTeams = config.teams.map(teamData => ({
+                        ...teamData,
+                        scores: [],
+                        total: 0,
+                    }));
+                    setTeams(newTeams);
+                } else {
+                    setTeams([]);
+                }
+
+                const startingPlayerIndex = Math.floor(Math.random() * newPlayers.length);
+                setStartingPlayer(newPlayers[startingPlayerIndex].name);
+                
+                setGameState('playing');
+            }, []);
+
+            const handleNewGame = useCallback(() => {
+                setGameState('setup');
+                setStartingPlayer(null);
+                // Scores and teams are reset on handleStartGame
+            }, []);
+
+            const handleAddRound = useCallback((roundScores) => {
+                let updatedPlayers = [];
+                setPlayers(prevPlayers => {
+                    const withNewScores = prevPlayers.map((player, index) => ({
+                        ...player,
+                        scores: [...player.scores, roundScores[index]],
+                    }));
+                    updatedPlayers = recalculatePlayerTotals(withNewScores);
+                    setTeams(prevTeams => calculateTeamScores(updatedPlayers, prevTeams));
+                    return updatedPlayers;
+                });
+                setStartingPlayer(null);
+            }, [calculateTeamScores]);
+            
+            const handleUpdateRound = useCallback((roundIndex, newScores) => {
+                let updatedPlayers = [];
+                setPlayers(prevPlayers => {
+                    const withUpdatedScores = prevPlayers.map((player, playerIndex) => {
+                        const updatedScores = [...player.scores];
+                        updatedScores[roundIndex] = newScores[playerIndex];
+                        return { ...player, scores: updatedScores };
+                    });
+                    updatedPlayers = recalculatePlayerTotals(withUpdatedScores);
+                    setTeams(prevTeams => calculateTeamScores(updatedPlayers, prevTeams));
+                    return updatedPlayers;
+                });
+            }, [calculateTeamScores]);
+
+            const handleDeleteRound = useCallback((roundIndex) => {
+                let updatedPlayers = [];
+                setPlayers(prevPlayers => {
+                    const withDeletedScore = prevPlayers.map(player => ({
+                        ...player,
+                        scores: player.scores.filter((_, index) => index !== roundIndex),
+                    }));
+                    updatedPlayers = recalculatePlayerTotals(withDeletedScore);
+                    setTeams(prevTeams => calculateTeamScores(updatedPlayers, prevTeams));
+                    return updatedPlayers;
+                });
+            }, [calculateTeamScores]);
+
+            return (
+                <div className="min-h-screen flex flex-col p-4">
+                    <main className="flex-grow flex items-center justify-center">
+                         <div className="w-full max-w-4xl mx-auto my-8">
+                            {gameState === 'setup' && <SetupScreen 
+                                onStartGame={handleStartGame} 
+                                initialGameName={gameName}
+                                initialPlayerNames={players.map(p => p.name)}
+                            />}
+                            {gameState === 'playing' && (
+                                <GameScreen
+                                    gameName={gameName}
+                                    players={players}
+                                    teams={teams}
+                                    playByTeams={playByTeams}
+                                    startingPlayer={startingPlayer}
+                                    onAddRound={handleAddRound}
+                                    onUpdateRound={handleUpdateRound}
+                                    onDeleteRound={handleDeleteRound}
+                                    onNewGame={handleNewGame}
+                                />
+                            )}
+                        </div>
+                    </main>
+                    <footer className="w-full text-center py-4 text-slate-500 text-sm flex-shrink-0">
+                        Una idea de Xavier Ribes
+                    </footer>
+                </div>
+            );
+        };
+
+        // --- RENDER ---
+        
+        const rootElement = document.getElementById('root');
+        if (!rootElement) {
+          throw new Error("Could not find root element to mount to");
+        }
+
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(
+          <React.StrictMode>
+            <App />
+          </React.StrictMode>
+        );
+    </script>
+</body>
+</html>

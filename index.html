@@ -596,7 +596,11 @@
                 setPlayerNames(newNames);
             };
 
-            const handleTeamCountChange = (e) => setTeamCount(Math.max(2, Math.min(4, parseInt(e.target.value, 10) || 2)));
+            const handleTeamCountChange = (e) => {
+                const count = Math.max(2, parseInt(e.target.value, 10) || 2);
+                setTeamCount(count);
+            };
+
             const handleTeamNameChange = (index, name) => {
                 const newTeams = [...teams];
                 newTeams[index].name = name;
@@ -628,7 +632,7 @@
 
             const handleStart = () => {
                 let count = parseInt(playerCount, 10);
-                count = Math.max(2, Math.min(8, count));
+                count = Math.max(2, count); // Ara només exigim un mínim de 2
                 const finalNames = playerNames.slice(0, count).map((name, i) => name || `Jugador ${i+1}`);
                 onStartGame(gameName, finalNames, { playByTeams, teams });
             };
@@ -647,7 +651,7 @@
                         <input type="text" value={gameName} onChange={(e) => setGameName(e.target.value)} placeholder="Ex: Continental, Pocha..." className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" />
                     </div>
                     <div>
-                        <label className="block mb-2 text-sm font-medium text-slate-300">Quants jugadors sereu? (Mín 2, Màx 8)</label>
+                        <label className="block mb-2 text-sm font-medium text-slate-300">Quants jugadors sereu? (Mín 2)</label>
                         <input 
                             type="number" 
                             value={playerCount} 
@@ -671,7 +675,7 @@
                         {playByTeams && (
                             <div className="space-y-4">
                                 <label className="block text-sm font-medium text-slate-300">Nombre d'equips</label>
-                                <input type="number" min="2" max="4" value={teamCount} onChange={handleTeamCountChange} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" />
+                                <input type="number" min="2" value={teamCount} onChange={handleTeamCountChange} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" />
                                 <div className="p-4 bg-slate-900/50 rounded-lg" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'unassigned')}>
                                     <h3 className="font-semibold text-slate-300 mb-2">Jugadors sense equip</h3>
                                     <div className="flex flex-wrap gap-2 min-h-[40px]">

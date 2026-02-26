@@ -67,13 +67,49 @@
         // --- MODALS ---
         const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, roundNumber }) => {
             if (!isOpen) return null;
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter') onConfirm();
+                if (e.key === 'Escape') onClose();
+            };
+
             return (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50"
+                    onKeyDown={handleKeyDown}
+                    tabIndex="-1"
+                >
                     <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm space-y-4 text-center">
                         <h3 className="text-2xl font-bold text-red-500">Confirmar Eliminació</h3>
                         <p className="text-slate-300">Estàs segur que vols eliminar la Ronda {roundNumber}? Aquesta acció no es pot desfer.</p>
                         <div className="flex gap-4 mt-4">
                             <button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Eliminar</button>
+                            <button onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ConfirmNewGameModal = ({ isOpen, onClose, onConfirm }) => {
+            if (!isOpen) return null;
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter') onConfirm();
+                if (e.key === 'Escape') onClose();
+            };
+
+            return (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50"
+                    onKeyDown={handleKeyDown}
+                    tabIndex="-1"
+                >
+                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm space-y-4 text-center">
+                        <h3 className="text-2xl font-bold text-red-500">Nova Partida?</h3>
+                        <p className="text-slate-300">Es perdran totes les puntuacions actuals. Vols continuar?</p>
+                        <div className="flex gap-4 mt-4">
+                            <button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Sí, Nova Partida</button>
                             <button onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
                         </div>
                     </div>
@@ -137,6 +173,9 @@
                 if (e.key === 'Enter') {
                     handleSave();
                 }
+                if (e.key === 'Escape') {
+                    onClose();
+                }
             };
 
             const renderPlayerInputs = (playerList) => {
@@ -165,8 +204,11 @@
             }
 
             return (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-40">
-                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-4">
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-40"
+                    onKeyDown={handleKeyDown}
+                >
+                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-md space-y-4">
                         <div className="flex justify-between items-center">
                             <h3 className="text-2xl font-bold text-cyan-400">Editar Punts de la Ronda {roundNumber}</h3>
                             <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 rounded-full transition duration-300" title="Eliminar Ronda">
@@ -348,6 +390,7 @@
             const [isNegative, setIsNegative] = useState([]);
             const [editingRoundIndex, setEditingRoundIndex] = useState(null);
             const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+            const [isNewGameConfirmOpen, setNewGameConfirmOpen] = useState(false);
 
             const currentRound = (players[0]?.scores.length || 0) + 1;
 
@@ -443,7 +486,7 @@
                                 {startingPlayer && <p className="text-slate-400 mt-1">Comença la partida: {startingPlayer}!</p>}
                             </div>
                             <button 
-                                onClick={onNewGame} 
+                                onClick={() => setNewGameConfirmOpen(true)} 
                                 className="bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg transition duration-300 text-sm self-end sm:self-auto"
                             >
                                 Nova Partida
@@ -501,6 +544,15 @@
                             roundNumber={editingRoundIndex + 1}
                         />
                     )}
+
+                    <ConfirmNewGameModal 
+                        isOpen={isNewGameConfirmOpen}
+                        onClose={() => setNewGameConfirmOpen(false)}
+                        onConfirm={() => {
+                            setNewGameConfirmOpen(false);
+                            onNewGame();
+                        }}
+                    />
                 </>
             );
         };
@@ -535,7 +587,6 @@
                     return;
                 }
                 const num = parseInt(val, 10);
-                // No bloquegem el rang aquí mentre l'usuari escriu per evitar que es reseteji o esclavi
                 setPlayerCount(num);
             };
 
@@ -577,14 +628,19 @@
 
             const handleStart = () => {
                 let count = parseInt(playerCount, 10);
-                // Ara sí, apliquem els límits reals en prémer el botó
                 count = Math.max(2, Math.min(8, count));
                 const finalNames = playerNames.slice(0, count).map((name, i) => name || `Jugador ${i+1}`);
                 onStartGame(gameName, finalNames, { playByTeams, teams });
             };
 
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !isStartDisabled) {
+                    handleStart();
+                }
+            };
+
             return (
-                <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl space-y-6 animate-fade-in">
+                <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl space-y-6 animate-fade-in" onKeyDown={handleKeyDown}>
                     <h1 className="text-3xl font-bold text-center text-cyan-400">Comptador de Punts</h1>
                     <div>
                         <label className="block mb-2 text-sm font-medium text-slate-300">Nom del Joc</label>

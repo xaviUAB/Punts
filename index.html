@@ -1,452 +1,738 @@
 <!DOCTYPE html>
 <html lang="ca">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comptador de Punts</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Score Keeper Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Amaga les fletxes de l'input de tipus number */
+        /* Hide number input arrows */
         input[type='number']::-webkit-outer-spin-button,
         input[type='number']::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
-        /* Assegura que els inputs de puntuació tenen el camp textfield per permetre introduir decimals */
         input[type='number'] {
             -moz-appearance: textfield;
         }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.5s ease-out forwards;
+        }
     </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-900 text-white">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+        import React, { useState, useCallback, useEffect, useMemo } from 'react';
+        import ReactDOM from 'react-dom/client';
 
-    <div id="app" class="w-full max-w-4xl mx-auto">
+        // --- ICONS ---
+        const PencilIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+            </svg>
+        );
 
-        <!-- Pantalla de Configuració Inicial -->
-        <div id="setup-container" class="bg-slate-800 p-8 rounded-2xl shadow-2xl space-y-6">
-            <h1 class="text-3xl font-bold text-center text-cyan-400">Comptador de Punts</h1>
-            <p class="text-center text-slate-400">Configura la teva partida per començar.</p>
-            
-            <div>
-                <label for="game-name" class="block mb-2 text-sm font-medium text-slate-300">Nom del Joc</label>
-                <input type="text" id="game-name" placeholder="Ex: Continental, Pocha..." class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5">
-            </div>
+        const TrashIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        );
 
-            <div>
-                <label for="player-count" class="block mb-2 text-sm font-medium text-slate-300">Quants jugadors sereu?</label>
-                <input type="number" id="player-count" min="2" max="8" placeholder="2" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5">
-            </div>
+        const StarIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+        );
 
-            <div id="player-names-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- Els camps per als noms dels jugadors s'insertaran aquí dinàmicament -->
-            </div>
-
-            <button id="start-game-btn" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-lg">
-                Començar Partida
-            </button>
-        </div>
-
-        <!-- Pantalla del Joc -->
-        <div id="game-container" class="hidden bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl">
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                <div>
-                    <h2 id="game-title" class="text-3xl font-bold text-cyan-400">Partida en Curs</h2>
-                    <p id="starting-player-info" class="text-slate-400 mt-1"></p>
+        // --- MODALS ---
+        const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, roundNumber }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm space-y-4 text-center">
+                        <h3 className="text-2xl font-bold text-red-500">Confirmar Eliminació</h3>
+                        <p className="text-slate-300">Estàs segur que vols eliminar la Ronda {roundNumber}? Aquesta acció no es pot desfer.</p>
+                        <div className="flex gap-4 mt-4">
+                            <button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Eliminar</button>
+                            <button onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
+                        </div>
+                    </div>
                 </div>
-                <button id="new-game-btn" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
-                    Nova Partida
-                </button>
-            </div>
+            );
+        };
 
-            <div class="overflow-x-auto rounded-lg">
-                <table id="score-table" class="w-full text-sm text-left text-slate-300">
-                    <thead id="score-table-head" class="text-xs text-cyan-300 uppercase bg-slate-700">
-                        <!-- La capçalera de la taula s'insertarà aquí -->
+        const EditRoundModal = ({ isOpen, onClose, onSave, onDelete, roundNumber, players, teams, playByTeams, roundScores }) => {
+            const [editedScores, setEditedScores] = useState([]);
+            const [isNegative, setIsNegative] = useState([]);
+
+            useEffect(() => {
+                if (isOpen) {
+                    setEditedScores(roundScores.map(score => score.toFixed(2).replace(/\.00$/, '')));
+                    setIsNegative(roundScores.map(score => score < 0));
+                }
+            }, [isOpen, roundScores]);
+            
+            if (!isOpen) return null;
+
+            const handleScoreChange = (index, value) => {
+                const updatedScores = [...editedScores];
+                updatedScores[index] = value;
+                setEditedScores(updatedScores);
+
+                const num = parseFloat(value);
+                const updatedIsNegative = [...isNegative];
+                updatedIsNegative[index] = value.startsWith('-') || num < 0;
+                setIsNegative(updatedIsNegative);
+            };
+
+            const handleNegativeToggle = (index) => {
+                const updatedIsNegative = [...isNegative];
+                const newStatus = !updatedIsNegative[index];
+                updatedIsNegative[index] = newStatus;
+                setIsNegative(updatedIsNegative);
+
+                const currentVal = editedScores[index];
+                const numVal = parseFloat(currentVal) || 0;
+                const updatedScores = [...editedScores];
+                
+                if (newStatus) {
+                    updatedScores[index] = `-${Math.abs(numVal)}`;
+                } else {
+                    updatedScores[index] = `${Math.abs(numVal)}`;
+                }
+                setEditedScores(updatedScores);
+            };
+
+            const handleSave = () => {
+                const newScores = players.map((_, index) => {
+                    let numValue = parseFloat(editedScores[index]) || 0;
+                    if (isNegative[index] && numValue > 0) numValue = -numValue;
+                    if (!isNegative[index] && numValue < 0) numValue = Math.abs(numValue);
+                    return numValue;
+                });
+                onSave(newScores);
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter') {
+                    handleSave();
+                }
+            };
+
+            const renderPlayerInputs = (playerList) => {
+                return playerList.map(player => {
+                    const index = players.findIndex(p => p.name === player.name);
+                    return (
+                        <div key={index}>
+                            <label htmlFor={`edit-score-${index}`} className="block mb-1 text-sm font-medium text-slate-300">{player.name}</label>
+                            <div className="flex items-center gap-2">
+                                <span className="sm:hidden">
+                                    <input type="checkbox" id={`edit-negative-check-${index}`} checked={isNegative[index]} onChange={() => handleNegativeToggle(index)} className="h-5 w-5 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 flex-shrink-0" title="Marcar si és negatiu" />
+                                </span>
+                                <input 
+                                    type="number" 
+                                    id={`edit-score-${index}`} 
+                                    value={editedScores[index] || ''} 
+                                    onChange={(e) => handleScoreChange(index, e.target.value)} 
+                                    onKeyDown={handleKeyDown}
+                                    className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" 
+                                    step="any" 
+                                />
+                            </div>
+                        </div>
+                    )
+                })
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-40">
+                    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-2xl font-bold text-cyan-400">Editar Punts de la Ronda {roundNumber}</h3>
+                            <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 rounded-full transition duration-300" title="Eliminar Ronda">
+                                <TrashIcon />
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-400 sm:hidden">Marca la casella per indicar una puntuació en negatiu</p>
+                        <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                            {playByTeams ? (
+                                <div className="space-y-4">
+                                    {teams.map(team => (
+                                        <div key={team.name}>
+                                            <h4 className="text-md font-semibold text-cyan-400 mb-2">{team.name}</h4>
+                                            <div className="space-y-3">
+                                                {renderPlayerInputs(players.filter(p => team.playerNames.includes(p.name)))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                               renderPlayerInputs(players)
+                            )}
+                        </div>
+                        <div className="flex gap-4">
+                            <button onClick={handleSave} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Desar Canvis</button>
+                            <button onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- TABLES ---
+        const PlayerScoreTable = ({ players, numRounds, onOpenEditModal }) => {
+            return (
+                <table className="w-full text-sm text-left text-slate-300">
+                    <thead className="text-xs text-cyan-300 uppercase bg-slate-700">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 min-w-[120px]">Ronda</th>
+                            {players.map(player => (
+                                <th key={player.name} scope="col" className="px-4 py-3 text-center min-w-[100px] truncate">{player.name}</th>
+                            ))}
+                        </tr>
                     </thead>
-                    <tbody id="score-table-body">
-                        <!-- Les files de les rondes s'insertaran aquí -->
+                    <tbody>
+                        {numRounds === 0 ? (
+                            <tr>
+                                <td colSpan={players.length + 1} className="text-center p-8 text-slate-500">
+                                    Encara no s'han afegit puntuacions.
+                                </td>
+                            </tr>
+                        ) : (
+                            Array.from({ length: numRounds }).map((_, i) => {
+                                const cumulativeScores = players.map(p => p.scores.slice(0, i + 1).reduce((a, b) => a + b, 0));
+                                const roundScores = players.map(p => p.scores[i]);
+                                const maxScore = Math.max(...roundScores);
+                                return (
+                                    <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50">
+                                        <td className="px-4 py-3 font-medium whitespace-nowrap flex items-center gap-2">
+                                            Ronda {i + 1}
+                                            <button onClick={() => onOpenEditModal(i)} className="text-slate-400 hover:text-cyan-400" title={`Editar Ronda ${i + 1}`}>
+                                                <PencilIcon />
+                                            </button>
+                                        </td>
+                                        {players.map((player, playerIndex) => {
+                                            const val = player.scores[i];
+                                            const roundScore = val.toFixed(2).replace(/\.00$/, '');
+                                            const scoreColor = val > 0 ? 'text-green-400' : (val < 0 ? 'text-red-400' : 'text-slate-400');
+                                            const isHighest = val === maxScore && roundScores.some(s => s !== 0);
+                                            return (
+                                                <td key={playerIndex} className="px-4 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className={`font-semibold ${scoreColor}`}>{roundScore}</span>
+                                                        {isHighest && <StarIcon className="w-4 h-4 text-yellow-400" />}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 block">({cumulativeScores[playerIndex].toFixed(2).replace(/\.00$/, '')})</span>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            })
+                        )}
                     </tbody>
-                    <tfoot id="score-table-foot" class="font-bold text-white bg-slate-700">
-                        <!-- La fila del total s'insertarà aquí -->
+                    <tfoot className="font-bold text-white bg-slate-700">
+                        <tr>
+                            <td className="px-4 py-3 text-lg">Total</td>
+                            {players.map((player, index) => (
+                                <td key={index} className="px-4 py-3 text-center text-lg text-cyan-400">
+                                    {player.total.toFixed(2).replace(/\.00$/, '')}
+                                </td>
+                            ))}
+                        </tr>
                     </tfoot>
                 </table>
-            </div>
+            );
+        };
 
-            <!-- Inputs per a la nova ronda -->
-            <div id="new-round-inputs" class="mt-6 p-4 bg-slate-900/50 rounded-lg">
-                 <h3 class="text-lg font-semibold mb-1">Punts de la Ronda <span id="current-round-number">1</span></h3>
-                 <p class="text-xs text-slate-400 mb-4 sm:hidden">Marca la casella per indicar una puntuació en negatiu</p>
-                 <div id="inputs-wrapper" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <!-- Els inputs per a les noves puntuacions s'insertaran aquí -->
-                 </div>
-                 <button id="add-round-btn" class="mt-4 w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
-                    Afegir Ronda
-                </button>
-            </div>
-        </div>
-
-        <!-- Modal per a Editar Ronda -->
-        <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4">
-            <div class="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-2xl font-bold text-cyan-400">Editar Punts de la Ronda <span id="edit-round-number"></span></h3>
-                    <button id="delete-round-btn" class="text-slate-400 hover:text-red-500 p-2 rounded-full transition duration-300" title="Eliminar Ronda">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
-                </div>
-                <p class="text-xs text-slate-400 sm:hidden">Marca la casella per indicar una puntuació en negatiu</p>
-                <div id="edit-inputs-container" class="space-y-3">
-                    <!-- Inputs per a editar s'insertaran aquí -->
-                </div>
-                <div class="flex gap-4">
-                    <button id="save-edit-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Desar Canvis</button>
-                    <button id="cancel-edit-btn" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Modal de Confirmació d'Eliminació -->
-        <div id="delete-confirm-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
-            <div class="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-sm space-y-4 text-center">
-                <h3 class="text-2xl font-bold text-red-500">Confirmar Eliminació</h3>
-                <p class="text-slate-300">Estàs segur que vols eliminar la Ronda <span id="delete-confirm-round-number"></span>? Aquesta acció no es pot desfer.</p>
-                <div class="flex gap-4 mt-4">
-                    <button id="confirm-delete-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Eliminar</button>
-                    <button id="cancel-delete-btn" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Cancel·lar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-<script>
-    // Variables d'estat de l'aplicació
-    let players = [];
-    let currentRound = 1;
-    let editingRoundIndex = -1;
-
-    // Elements del DOM
-    const gameNameInput = document.getElementById('game-name');
-    const playerCountInput = document.getElementById('player-count');
-    const playerNamesContainer = document.getElementById('player-names-container');
-    const startGameBtn = document.getElementById('start-game-btn');
-    const setupContainer = document.getElementById('setup-container');
-    const gameContainer = document.getElementById('game-container');
-    const gameTitle = document.getElementById('game-title');
-    const startingPlayerInfo = document.getElementById('starting-player-info');
-    const newGameBtn = document.getElementById('new-game-btn');
-    const scoreTableHead = document.getElementById('score-table-head');
-    const scoreTableBody = document.getElementById('score-table-body');
-    const scoreTableFoot = document.getElementById('score-table-foot');
-    const currentRoundNumber = document.getElementById('current-round-number');
-    const inputsWrapper = document.getElementById('inputs-wrapper');
-    const addRoundBtn = document.getElementById('add-round-btn');
-    const editModal = document.getElementById('edit-modal');
-    const editRoundNumber = document.getElementById('edit-round-number');
-    const editInputsContainer = document.getElementById('edit-inputs-container');
-    const saveEditBtn = document.getElementById('save-edit-btn');
-    const cancelEditBtn = document.getElementById('cancel-edit-btn');
-    const deleteRoundBtn = document.getElementById('delete-round-btn');
-    const deleteConfirmModal = document.getElementById('delete-confirm-modal');
-    const deleteConfirmRoundNumber = document.getElementById('delete-confirm-round-number');
-    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
-    const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-
-
-    // --- LÒGICA DE CONFIGURACIÓ ---
-
-    function updatePlayerNameInputs() {
-        const count = parseInt(playerCountInput.value) || 2; 
-        playerNamesContainer.innerHTML = '';
-        for (let i = 0; i < count; i++) {
-            const inputDiv = document.createElement('div');
-            inputDiv.innerHTML = `
-                <label for="player-name-${i+1}" class="block mb-2 text-sm font-medium text-slate-300">Nom del Jugador ${i+1}</label>
-                <input type="text" id="player-name-${i+1}" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" placeholder="Jugador ${i+1}">
-            `;
-            playerNamesContainer.appendChild(inputDiv);
-        }
-    }
-
-    function startGame() {
-        const gameName = gameNameInput.value.trim() || 'Partida';
-        gameTitle.textContent = gameName;
-
-        const playerCount = parseInt(playerCountInput.value) || 2;
-        
-        players = [];
-        for (let i = 0; i < playerCount; i++) {
-            const nameInput = document.getElementById(`player-name-${i+1}`);
-            const name = nameInput.value.trim() || `Jugador ${i+1}`; 
-            players.push({ name: name, scores: [], total: 0 });
+        const TeamScoreTable = ({ teams, players, numRounds, onOpenEditModal }) => {
+            return (
+                <table className="w-full text-sm text-left text-slate-300">
+                    <thead className="text-xs text-cyan-300 uppercase bg-slate-700">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 min-w-[120px]">Ronda</th>
+                            {teams.map(team => (
+                                <th key={team.name} scope="col" className="px-4 py-3 text-center min-w-[100px] truncate">{team.name}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                         {numRounds === 0 ? (
+                            <tr>
+                                <td colSpan={teams.length + 1} className="text-center p-8 text-slate-500">
+                                    Encara no s'han afegit puntuacions.
+                                </td>
+                            </tr>
+                        ) : (
+                            Array.from({ length: numRounds }).map((_, i) => {
+                                const cumulativeScores = teams.map(t => t.scores.slice(0, i + 1).reduce((a, b) => a + b, 0));
+                                const roundScores = teams.map(t => t.scores[i]);
+                                const maxScore = Math.max(...roundScores);
+                                return (
+                                     <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50">
+                                        <td className="px-4 py-3 font-medium whitespace-nowrap flex items-center gap-2">
+                                            Ronda {i + 1}
+                                            <button onClick={() => onOpenEditModal(i)} className="text-slate-400 hover:text-cyan-400" title={`Editar Ronda ${i + 1}`}>
+                                                <PencilIcon />
+                                            </button>
+                                        </td>
+                                        {teams.map((team, teamIndex) => {
+                                            const val = team.scores[i];
+                                            const roundScore = val.toFixed(2).replace(/\.00$/, '');
+                                            const scoreColor = val > 0 ? 'text-green-400' : (val < 0 ? 'text-red-400' : 'text-slate-400');
+                                            const isHighest = val === maxScore && roundScores.some(s => s !== 0);
+                                            const playerBreakdown = team.playerNames.map(name => {
+                                                const player = players.find(p => p.name === name);
+                                                const score = player?.scores[i].toFixed(2).replace(/\.00$/, '') || 'N/A';
+                                                return `${name.split(' ')[0]}: ${score}`;
+                                            }).join(' / ');
+                                            return (
+                                                <td key={teamIndex} className="px-4 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className={`font-semibold ${scoreColor}`}>{roundScore}</span>
+                                                        {isHighest && <StarIcon className="w-4 h-4 text-yellow-400" />}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 block truncate" title={playerBreakdown}>({playerBreakdown})</span>
+                                                    <span className="text-xs text-slate-400 block font-bold">Total: {cumulativeScores[teamIndex].toFixed(2).replace(/\.00$/, '')}</span>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                )
+                            })
+                        )}
+                    </tbody>
+                    <tfoot className="font-bold text-white bg-slate-700">
+                         <tr>
+                            <td className="px-4 py-3 text-lg">Total</td>
+                            {teams.map((team, index) => (
+                                <td key={index} className="px-4 py-3 text-center text-lg text-cyan-400">
+                                    {team.total.toFixed(2).replace(/\.00$/, '')}
+                                </td>
+                            ))}
+                        </tr>
+                    </tfoot>
+                </table>
+            )
         }
 
-        if (players.length < 2) {
-            console.error("Calen almenys 2 jugadors.");
-            return;
-        }
+        const ScoreTable = ({ players, teams, playByTeams, onOpenEditModal }) => {
+            const numRounds = players[0]?.scores.length || 0;
+            if (playByTeams) return <TeamScoreTable teams={teams} players={players} numRounds={numRounds} onOpenEditModal={onOpenEditModal} />;
+            return <PlayerScoreTable players={players} numRounds={numRounds} onOpenEditModal={onOpenEditModal} />;
+        };
 
-        const startingPlayerIndex = Math.floor(Math.random() * players.length);
-        startingPlayerInfo.textContent = `Comença la partida: ${players[startingPlayerIndex].name}!`;
-        startingPlayerInfo.classList.remove('hidden');
-        
-        currentRound = 1;
-        setupContainer.classList.add('hidden');
-        gameContainer.classList.remove('hidden');
-        renderGame();
-    }
-    
-    // --- LÒGICA DE RENDERITZAT DEL JOC ---
+        // --- SCREENS ---
+        const GameScreen = ({ gameName, players, teams, playByTeams, startingPlayer, onAddRound, onUpdateRound, onDeleteRound, onNewGame }) => {
+            const [newScores, setNewScores] = useState([]);
+            const [isNegative, setIsNegative] = useState([]);
+            const [editingRoundIndex, setEditingRoundIndex] = useState(null);
+            const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
 
-    function renderGame() {
-        renderTableHead();
-        renderTableBody();
-        renderTableFoot();
-        renderNewRoundInputs();
-        currentRoundNumber.textContent = currentRound;
-    }
+            const currentRound = (players[0]?.scores.length || 0) + 1;
 
-    function renderTableHead() {
-        let headHTML = '<tr><th scope="col" class="px-4 py-3 min-w-[120px]">Ronda</th>';
-        players.forEach(player => {
-            headHTML += `<th scope="col" class="px-4 py-3 text-center min-w-[100px]">${player.name}</th>`;
-        });
-        headHTML += '</tr>';
-        scoreTableHead.innerHTML = headHTML;
-    }
+            useEffect(() => {
+                setNewScores(Array(players.length).fill(''));
+                setIsNegative(Array(players.length).fill(false));
+            }, [players.length, currentRound]);
 
-    function renderTableBody() {
-        scoreTableBody.innerHTML = '';
-        if (players.length === 0 || players[0].scores.length === 0) {
-            scoreTableBody.innerHTML = `<tr><td colspan="${players.length + 1}" class="text-center p-8 text-slate-500">Encara no s'han afegit puntuacions.</td></tr>`;
-            return;
-        }
+            const handleScoreChange = (index, value) => {
+                const updatedScores = [...newScores];
+                updatedScores[index] = value;
+                setNewScores(updatedScores);
 
-        const numRounds = players[0].scores.length;
-        let cumulativeScores = new Array(players.length).fill(0);
+                const num = parseFloat(value);
+                const updatedIsNegative = [...isNegative];
+                updatedIsNegative[index] = value.startsWith('-') || num < 0;
+                setIsNegative(updatedIsNegative);
+            };
 
-        for (let i = 0; i < numRounds; i++) {
-            let rowHTML = `<tr class="border-b border-slate-700 hover:bg-slate-700/50">`;
-            rowHTML += `
-                <td class="px-4 py-3 font-medium whitespace-nowrap flex items-center gap-2">
-                    Ronda ${i + 1}
-                    <button onclick="openEditModal(${i})" class="text-slate-400 hover:text-cyan-400" title="Editar Ronda ${i+1}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                            <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </td>
-            `;
+            const handleNegativeToggle = (index) => {
+                const updatedIsNegative = [...isNegative];
+                const newStatus = !updatedIsNegative[index];
+                updatedIsNegative[index] = newStatus;
+                setIsNegative(updatedIsNegative);
 
-            players.forEach((player, playerIndex) => {
-                const roundScoreValue = player.scores[i];
-                const roundScoreDisplay = parseFloat(roundScoreValue).toFixed(2).replace(/\.00$/, ''); 
-                cumulativeScores[playerIndex] += roundScoreValue;
-                const scoreColor = roundScoreValue > 0 ? 'text-green-400' : (roundScoreValue < 0 ? 'text-red-400' : 'text-slate-400');
-                
-                rowHTML += `
-                    <td class="px-4 py-3 text-center">
-                        <span class="font-semibold ${scoreColor}">${roundScoreDisplay}</span>
-                        <span class="text-xs text-slate-500 block">(${cumulativeScores[playerIndex].toFixed(2).replace(/\.00$/, '')})</span>
-                    </td>
-                `;
-            });
-            rowHTML += `</tr>`;
-            scoreTableBody.innerHTML += rowHTML;
-        }
-    }
+                const currentVal = newScores[index];
+                const numVal = parseFloat(currentVal) || 0;
+                const updatedScores = [...newScores];
+                if (newStatus) {
+                    updatedScores[index] = `-${Math.abs(numVal)}`;
+                } else {
+                    updatedScores[index] = `${Math.abs(numVal)}`;
+                }
+                setNewScores(updatedScores);
+            };
 
-    function renderTableFoot() {
-        let footHTML = '<tr><td class="px-4 py-3 text-lg">Total</td>';
-        players.forEach(player => {
-            footHTML += `<td class="px-4 py-3 text-center text-lg text-cyan-400">${player.total.toFixed(2).replace(/\.00$/, '')}</td>`;
-        });
-        footHTML += '</tr>';
-        scoreTableFoot.innerHTML = footHTML;
-    }
-    
-    function renderNewRoundInputs() {
-        inputsWrapper.innerHTML = '';
-        inputsWrapper.className = `grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4`;
-        
-        players.forEach((player, index) => {
-            const inputContainer = document.createElement('div');
-            inputContainer.innerHTML = `
-                <label for="round-score-${index}" class="block mb-1 text-sm font-medium text-slate-400 truncate">${player.name}</label>
-                <div class="flex items-center gap-2">
-                    <span class="sm:hidden">
-                        <input type="checkbox" id="round-negative-check-${index}" class="h-5 w-5 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 flex-shrink-0">
-                    </span>
-                    <input type="number" id="round-score-${index}" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5 text-center" placeholder="0" step="any">
-                </div>
-            `;
-            inputsWrapper.appendChild(inputContainer);
-        });
-    }
+            const handleAddRound = () => {
+                const allEmpty = newScores.every(score => score.trim() === '');
+                if (allEmpty) return;
 
-    // --- LÒGICA D'INTERACCIÓ ---
-
-    function addRound() {
-        const scoreInputs = inputsWrapper.querySelectorAll('input[type="number"]');
-        const allEmpty = Array.from(scoreInputs).every(input => input.value.trim() === '');
-
-        if (allEmpty) return;
-        
-        for (let i = 0; i < players.length; i++) {
-            const scoreInput = document.getElementById(`round-score-${i}`);
-            const negativeCheck = document.getElementById(`round-negative-check-${i}`);
+                const roundScores = players.map((_, index) => {
+                    let numValue = parseFloat(newScores[index]) || 0;
+                    if (isNegative[index] && numValue > 0) numValue = -numValue;
+                    if (!isNegative[index] && numValue < 0) numValue = Math.abs(numValue);
+                    return numValue;
+                });
+                onAddRound(roundScores);
+            };
             
-            const rawScore = scoreInput.value.trim();
-            let finalScore = parseFloat(rawScore) || 0; 
+            const handleOpenEditModal = (roundIndex) => setEditingRoundIndex(roundIndex);
+            const handleCloseEditModal = () => setEditingRoundIndex(null);
+
+            const handleSaveEdits = (newScores) => {
+                if (editingRoundIndex !== null) onUpdateRound(editingRoundIndex, newScores);
+                handleCloseEditModal();
+            };
             
-            // LÒGICA CORREGIDA: Només apliquem el checkbox si és visible (mòbil)
-            const isMobile = window.innerWidth < 640;
-            if (isMobile && finalScore > 0 && negativeCheck?.checked) {
-                finalScore = -finalScore;
-            }
+            const handleOpenDeleteConfirm = () => setDeleteModalOpen(true);
+
+            const handleConfirmDelete = () => {
+                if (editingRoundIndex !== null) onDeleteRound(editingRoundIndex);
+                setDeleteModalOpen(false);
+                handleCloseEditModal();
+            };
+
+            const handleKeyDown = (event) => {
+                if (event.key === 'Enter') handleAddRound();
+            };
             
-            players[i].scores.push(finalScore);
-            scoreInput.value = '';
-            if (negativeCheck) negativeCheck.checked = false;
-        }
-
-        recalculateTotals();
-        currentRound++;
-        renderGame();
-
-        if (players.length > 0 && players[0].scores.length > 0) {
-            startingPlayerInfo.classList.add('hidden');
-        }
-    }
-    
-    function recalculateTotals() {
-        players.forEach(player => {
-            player.total = player.scores.reduce((sum, current) => sum + current, 0);
-        });
-    }
-
-    function resetGame() {
-        players = [];
-        currentRound = 1;
-        gameContainer.classList.add('hidden');
-        setupContainer.classList.remove('hidden');
-        updatePlayerNameInputs();
-    }
-
-    // --- LÒGICA DELS MODALS ---
-    
-    function openEditModal(roundIndex) {
-        editingRoundIndex = roundIndex;
-        editRoundNumber.textContent = roundIndex + 1;
-        editInputsContainer.innerHTML = '';
-        
-        players.forEach((player, playerIndex) => {
-            const inputGroup = document.createElement('div');
-            const originalScore = player.scores[roundIndex];
-            const isNegative = originalScore < 0;
-            
-            // Mostrem el valor real (amb el signe negatiu inclòs si ja el té)
-            const scoreValue = originalScore.toFixed(2).replace(/\.00$/, ''); 
-
-            inputGroup.innerHTML = `
-                <label for="edit-score-${playerIndex}" class="block mb-1 text-sm font-medium text-slate-300">${player.name}</label>
-                <div class="flex items-center gap-2">
-                    <span class="sm:hidden">
-                        <input type="checkbox" id="edit-negative-check-${playerIndex}" ${isNegative ? 'checked' : ''} class="h-5 w-5 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 flex-shrink-0">
-                    </span>
-                    <input type="number" id="edit-score-${playerIndex}" value="${scoreValue}" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" step="any">
-                </div>
-            `;
-            editInputsContainer.appendChild(inputGroup);
-        });
-        
-        editModal.classList.remove('hidden');
-        editModal.classList.add('flex');
-    }
-
-    function closeEditModal() {
-        editModal.classList.add('hidden');
-        editModal.classList.remove('flex');
-        editingRoundIndex = -1;
-    }
-
-    function saveEdits() {
-        if (editingRoundIndex < 0) return;
-        
-        players.forEach((player, playerIndex) => {
-            const editedScoreInput = document.getElementById(`edit-score-${playerIndex}`);
-            const negativeCheck = document.getElementById(`edit-negative-check-${playerIndex}`);
-            
-            const rawScore = editedScoreInput.value.trim();
-            let newScore = parseFloat(rawScore) || 0;
-            
-            // LÒGICA CORREGIDA:
-            // 1. Si estem en mòbil (amplada < 640px), comprovem el checkbox.
-            // 2. Si el checkbox està marcat i el número introduït és positiu, el fem negatiu.
-            // 3. En ordinador, el checkbox està amagat i no fem res (el parseFloat ja agafa el signe si l'usuari l'ha posat).
-            const isMobile = window.innerWidth < 640;
-            if (isMobile && newScore > 0 && negativeCheck?.checked) {
-                newScore = -newScore;
+            const renderPlayerInputs = (playerList) => {
+                return playerList.map(player => {
+                    const index = players.findIndex(p => p.name === player.name);
+                    return (
+                         <div key={index}>
+                            <label htmlFor={`round-score-${index}`} className="block mb-1 text-sm font-medium text-slate-400 truncate">{player.name}</label>
+                            <div className="flex items-center gap-2">
+                                <span className="sm:hidden">
+                                    <input type="checkbox" id={`round-negative-check-${index}`} checked={isNegative[index]} onChange={() => handleNegativeToggle(index)} className="h-5 w-5 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 flex-shrink-0" title="Marcar si és negatiu" />
+                                </span>
+                                <input type="number" id={`round-score-${index}`} value={newScores[index] || ''} onChange={(e) => handleScoreChange(index, e.target.value)} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5 text-center" placeholder="0" step="any" />
+                            </div>
+                        </div>
+                    )
+                })
             }
 
-            player.scores[editingRoundIndex] = newScore;
-        });
+            return (
+                <>
+                    <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl animate-fade-in">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                            <div>
+                                <h2 className="text-3xl font-bold text-cyan-400">{gameName}</h2>
+                                {startingPlayer && <p className="text-slate-400 mt-1">Comença la partida: {startingPlayer}!</p>}
+                            </div>
+                            <button 
+                                onClick={onNewGame} 
+                                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg transition duration-300 text-sm self-end sm:self-auto"
+                            >
+                                Nova Partida
+                            </button>
+                        </div>
 
-        recalculateTotals();
-        renderGame();
-        closeEditModal();
-    }
-    
-    function openDeleteConfirmModal() {
-        deleteConfirmRoundNumber.textContent = editingRoundIndex + 1;
-        deleteConfirmModal.classList.remove('hidden');
-        deleteConfirmModal.classList.add('flex');
-    }
+                        <div className="overflow-x-auto rounded-lg">
+                            <ScoreTable players={players} teams={teams} playByTeams={playByTeams} onOpenEditModal={handleOpenEditModal} />
+                        </div>
 
-    function closeDeleteConfirmModal() {
-        deleteConfirmModal.classList.add('hidden');
-        deleteConfirmModal.classList.remove('flex');
-    }
+                        <div className="mt-6 p-4 bg-slate-900/50 rounded-lg" onKeyDown={handleKeyDown}>
+                            <h3 className="text-lg font-semibold mb-1">Punts de la Ronda <span>{currentRound}</span></h3>
+                            <p className="text-xs text-slate-400 mb-4 sm:hidden">Marca la casella per indicar una puntuació en negatiu</p>
+                            {playByTeams ? (
+                                <div className="space-y-4">
+                                    {teams.map(team => (
+                                        <div key={team.name}>
+                                            <h4 className="text-md font-semibold text-cyan-400 mb-2">{team.name}</h4>
+                                            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                                {renderPlayerInputs(players.filter(p => team.playerNames.includes(p.name)))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {renderPlayerInputs(players)}
+                                </div>
+                            )}
+                            <button onClick={handleAddRound} className="mt-4 w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
+                                Desar Puntuació
+                            </button>
+                        </div>
+                    </div>
 
-    function deleteRound() {
-        if (editingRoundIndex < 0) return;
+                    {editingRoundIndex !== null && (
+                        <EditRoundModal
+                            isOpen={editingRoundIndex !== null}
+                            onClose={handleCloseEditModal}
+                            onSave={handleSaveEdits}
+                            onDelete={handleOpenDeleteConfirm}
+                            roundNumber={editingRoundIndex + 1}
+                            players={players}
+                            teams={teams}
+                            playByTeams={playByTeams}
+                            roundScores={players.map(p => p.scores[editingRoundIndex])}
+                        />
+                    )}
+                    
+                    {editingRoundIndex !== null && (
+                        <ConfirmDeleteModal
+                            isOpen={isDeleteModalOpen}
+                            onClose={() => setDeleteModalOpen(false)}
+                            onConfirm={handleConfirmDelete}
+                            roundNumber={editingRoundIndex + 1}
+                        />
+                    )}
+                </>
+            );
+        };
+        
+        const SetupScreen = ({ onStartGame, initialGameName = '', initialPlayerNames = [] }) => {
+            const hasInitialPlayers = initialPlayerNames && initialPlayerNames.length >= 2;
+            const [gameName, setGameName] = useState(initialGameName);
+            const [playerCount, setPlayerCount] = useState(hasInitialPlayers ? initialPlayerNames.length : 2);
+            const [playerNames, setPlayerNames] = useState(hasInitialPlayers ? initialPlayerNames : Array(2).fill(''));
+            const [playByTeams, setPlayByTeams] = useState(false);
+            const [teamCount, setTeamCount] = useState(2);
+            const [teams, setTeams] = useState([]);
+            const [unassignedPlayers, setUnassignedPlayers] = useState([]);
+            
+            useEffect(() => {
+                const count = parseInt(playerCount, 10);
+                if (!isNaN(count)) {
+                    const newPlayerNames = Array.from({ length: count }, (_, i) => playerNames[i] || '');
+                    setPlayerNames(newPlayerNames);
+                }
+            }, [playerCount]);
+            
+            useEffect(() => {
+                setUnassignedPlayers(playerNames.map((name, i) => name || `Jugador ${i + 1}`));
+                setTeams(Array.from({ length: teamCount }, (_, i) => ({ name: `Equip ${i + 1}`, playerNames: [] })));
+            }, [playByTeams, teamCount, playerNames]);
 
-        players.forEach(player => {
-            player.scores.splice(editingRoundIndex, 1);
-        });
+            const handlePlayerCountChange = (e) => {
+                const val = e.target.value;
+                if (val === '') {
+                    setPlayerCount('');
+                    return;
+                }
+                const num = parseInt(val, 10);
+                // No bloquegem el rang aquí mentre l'usuari escriu per evitar que es reseteji o esclavi
+                setPlayerCount(num);
+            };
 
-        recalculateTotals();
-        currentRound = (players[0]?.scores.length || 0) + 1;
-        renderGame();
-        closeEditModal();
-        closeDeleteConfirmModal();
-    }
+            const handlePlayerNameChange = (index, name) => {
+                const newNames = [...playerNames];
+                newNames[index] = name;
+                setPlayerNames(newNames);
+            };
 
-    // --- ESDEVENIMENTS ---
-    
-    document.addEventListener('DOMContentLoaded', updatePlayerNameInputs);
-    playerCountInput.addEventListener('input', updatePlayerNameInputs);
-    startGameBtn.addEventListener('click', startGame);
-    addRoundBtn.addEventListener('click', addRound);
-    newGameBtn.addEventListener('click', resetGame);
-    saveEditBtn.addEventListener('click', saveEdits);
-    cancelEditBtn.addEventListener('click', closeEditModal);
-    deleteRoundBtn.addEventListener('click', openDeleteConfirmModal);
-    confirmDeleteBtn.addEventListener('click', deleteRound);
-    cancelDeleteBtn.addEventListener('click', closeDeleteConfirmModal);
-    
-    inputsWrapper.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            addRound();
-        }
-    });
-</script>
+            const handleTeamCountChange = (e) => setTeamCount(Math.max(2, Math.min(4, parseInt(e.target.value, 10) || 2)));
+            const handleTeamNameChange = (index, name) => {
+                const newTeams = [...teams];
+                newTeams[index].name = name;
+                setTeams(newTeams);
+            };
 
+            const handleDragStart = (e, playerName) => e.dataTransfer.setData("playerName", playerName);
+            const handleDragOver = (e) => e.preventDefault();
+            const handleDrop = (e, target) => {
+                e.preventDefault();
+                const playerName = e.dataTransfer.getData("playerName");
+                if (!playerName) return;
+                const newUnassigned = unassignedPlayers.filter(p => p !== playerName);
+                const newTeams = teams.map(team => ({ ...team, playerNames: team.playerNames.filter(p => p !== playerName) }));
+                if (target === 'unassigned') {
+                    setUnassignedPlayers([...newUnassigned, playerName]);
+                    setTeams(newTeams);
+                } else {
+                    newTeams[target].playerNames.push(playerName);
+                    setTeams(newTeams);
+                    setUnassignedPlayers(newUnassigned);
+                }
+            };
+
+            const isStartDisabled = useMemo(() => {
+                const count = parseInt(playerCount, 10);
+                return isNaN(count) || count < 2 || (playByTeams && unassignedPlayers.length > 0);
+            }, [playByTeams, unassignedPlayers, playerCount]);
+
+            const handleStart = () => {
+                let count = parseInt(playerCount, 10);
+                // Ara sí, apliquem els límits reals en prémer el botó
+                count = Math.max(2, Math.min(8, count));
+                const finalNames = playerNames.slice(0, count).map((name, i) => name || `Jugador ${i+1}`);
+                onStartGame(gameName, finalNames, { playByTeams, teams });
+            };
+
+            return (
+                <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl space-y-6 animate-fade-in">
+                    <h1 className="text-3xl font-bold text-center text-cyan-400">Comptador de Punts</h1>
+                    <div>
+                        <label className="block mb-2 text-sm font-medium text-slate-300">Nom del Joc</label>
+                        <input type="text" value={gameName} onChange={(e) => setGameName(e.target.value)} placeholder="Ex: Continental, Pocha..." className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" />
+                    </div>
+                    <div>
+                        <label className="block mb-2 text-sm font-medium text-slate-300">Quants jugadors sereu? (Mín 2, Màx 8)</label>
+                        <input 
+                            type="number" 
+                            value={playerCount} 
+                            onChange={handlePlayerCountChange} 
+                            className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" 
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {playerNames.map((name, index) => (
+                            <div key={index}>
+                                <label className="block mb-2 text-sm font-medium text-slate-300">Nom del Jugador {index + 1}</label>
+                                <input type="text" value={name} onChange={(e) => handlePlayerNameChange(index, e.target.value)} placeholder={`Jugador ${index + 1}`} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="border-t border-slate-700 pt-6 space-y-4">
+                        <div className="flex items-center">
+                            <input id="play-by-teams" type="checkbox" checked={playByTeams} onChange={(e) => setPlayByTeams(e.target.checked)} className="w-4 h-4 text-cyan-600 bg-slate-700 border-slate-600 rounded" />
+                            <label htmlFor="play-by-teams" className="ml-2 text-sm font-medium text-slate-300">Jugar per equips</label>
+                        </div>
+                        {playByTeams && (
+                            <div className="space-y-4">
+                                <label className="block text-sm font-medium text-slate-300">Nombre d'equips</label>
+                                <input type="number" min="2" max="4" value={teamCount} onChange={handleTeamCountChange} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg w-full p-2.5" />
+                                <div className="p-4 bg-slate-900/50 rounded-lg" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'unassigned')}>
+                                    <h3 className="font-semibold text-slate-300 mb-2">Jugadors sense equip</h3>
+                                    <div className="flex flex-wrap gap-2 min-h-[40px]">
+                                        {unassignedPlayers.map(p => (
+                                            <div key={p} draggable onDragStart={(e) => handleDragStart(e, p)} className="bg-slate-600 px-3 py-1 rounded-full text-sm cursor-grab">{p}</div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {teams.map((team, index) => (
+                                        <div key={index} className="p-4 bg-slate-700 rounded-lg" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, index)}>
+                                            <input type="text" value={team.name} onChange={(e) => handleTeamNameChange(index, e.target.value)} className="bg-transparent text-cyan-400 font-bold w-full mb-2 focus:outline-none" />
+                                            <div className="flex flex-wrap gap-2 min-h-[40px]">
+                                                {team.playerNames.map(p => <div key={p} draggable onDragStart={(e) => handleDragStart(e, p)} className="bg-slate-600 px-3 py-1 rounded-full text-sm cursor-grab">{p}</div>)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <button onClick={handleStart} disabled={isStartDisabled} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg disabled:bg-slate-600 shadow-lg transition duration-300">
+                        {isStartDisabled ? "Configura els jugadors" : "Començar Partida"}
+                    </button>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [gameState, setGameState] = useState('setup');
+            const [gameName, setGameName] = useState('');
+            const [players, setPlayers] = useState([]);
+            const [teams, setTeams] = useState([]);
+            const [playByTeams, setPlayByTeams] = useState(false);
+            const [startingPlayer, setStartingPlayer] = useState(null);
+
+            const recalculatePlayerTotals = (updatedPlayers) => updatedPlayers.map(p => ({ ...p, total: p.scores.reduce((a, b) => a + b, 0) }));
+
+            const calculateTeamScores = useCallback((currentPlayers, currentTeams) => {
+                if (!currentTeams.length) return [];
+                return currentTeams.map(team => {
+                    const numRounds = currentPlayers[0]?.scores.length || 0;
+                    const teamScores = Array.from({ length: numRounds }, (_, i) => 
+                        team.playerNames.reduce((acc, name) => acc + (currentPlayers.find(p => p.name === name)?.scores[i] || 0), 0)
+                    );
+                    return { ...team, scores: teamScores, total: teamScores.reduce((a, b) => a + b, 0) };
+                });
+            }, []);
+
+            const handleStartGame = useCallback((name, playerNames, config) => {
+                setGameName(name || 'Partida');
+                setPlayByTeams(config.playByTeams);
+                const newPlayers = playerNames.map(name => ({ name, scores: [], total: 0 }));
+                setPlayers(newPlayers);
+                setTeams(config.playByTeams ? config.teams.map(t => ({ ...t, scores: [], total: 0 })) : []);
+                setStartingPlayer(newPlayers[Math.floor(Math.random() * newPlayers.length)].name);
+                setGameState('playing');
+            }, []);
+
+            const handleNewGame = useCallback(() => setGameState('setup'), []);
+
+            const handleAddRound = useCallback((roundScores) => {
+                setPlayers(prev => {
+                    const updated = recalculatePlayerTotals(prev.map((p, i) => ({ ...p, scores: [...p.scores, roundScores[i]] })));
+                    setTeams(t => calculateTeamScores(updated, t));
+                    return updated;
+                });
+                setStartingPlayer(null);
+            }, [calculateTeamScores]);
+            
+            const handleUpdateRound = useCallback((roundIndex, newScores) => {
+                setPlayers(prev => {
+                    const updated = recalculatePlayerTotals(prev.map((p, i) => {
+                        const s = [...p.scores];
+                        s[roundIndex] = newScores[i];
+                        return { ...p, scores: s };
+                    }));
+                    setTeams(t => calculateTeamScores(updated, t));
+                    return updated;
+                });
+            }, [calculateTeamScores]);
+
+            const handleDeleteRound = useCallback((roundIndex) => {
+                setPlayers(prev => {
+                    const updated = recalculatePlayerTotals(prev.map(p => ({ ...p, scores: p.scores.filter((_, i) => i !== roundIndex) })));
+                    setTeams(t => calculateTeamScores(updated, t));
+                    return updated;
+                });
+            }, [calculateTeamScores]);
+
+            return (
+                <div className="min-h-screen flex flex-col p-4">
+                    <main className="flex-grow flex items-center justify-center">
+                         <div className="w-full max-w-4xl mx-auto my-8">
+                            {gameState === 'setup' && <SetupScreen onStartGame={handleStartGame} initialGameName={gameName} initialPlayerNames={players.map(p => p.name)} />}
+                            {gameState === 'playing' && (
+                                <GameScreen 
+                                    gameName={gameName} 
+                                    players={players} 
+                                    teams={teams} 
+                                    playByTeams={playByTeams} 
+                                    startingPlayer={startingPlayer} 
+                                    onAddRound={handleAddRound} 
+                                    onUpdateRound={handleUpdateRound} 
+                                    onDeleteRound={handleDeleteRound} 
+                                    onNewGame={handleNewGame} 
+                                />
+                            )}
+                        </div>
+                    </main>
+                    <footer className="w-full text-center py-4 text-slate-500 text-sm">Una idea de Xavier Ribes</footer>
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<React.StrictMode><App /></React.StrictMode>);
+    </script>
 </body>
 </html>
